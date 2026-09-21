@@ -44,6 +44,13 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
 - **Room sensor slot works when emulated:** answer `0A 17 06 <room temp ×10> 00 00 00 00 CRC` (reg1 = reg2 = 0,
   exactly what a genuine 086U9563 returns, e.g. `0A 17 06 00 DD 00 00 00 00 BE A9` = 22.1 °C) and the display
   auto-detects a room sensor and uses the value for room compensation (verified: 18 °C → heating, 28 °C → cooling).
+  We now know *why* zeros are correct: the three reply registers are **@46000 = room temperature ×10,
+  @46001 = pending setpoint request, @46002 = unused**, so a sensor with nothing to request answers 0.
+  (An early emulator of ours echoed the pushed setpoint into @46001 by accident; that is a bug, not a flag.)
+- **Untested idea, open to anyone:** if @46001 really is a *setpoint request* channel, a room sensor can ask the
+  controller to change the setpoint — a second, cleaner control path than faking the measured room temperature.
+  Nobody has tried it: the ESPHome projects are deliberately receive-only. Writes to the setpoint *mirrors*
+  (`0x0A` @46021, `0x0F` @1012) are known **not** to work — the display owns those.
 - **Online-module slot does not activate** with any guessed content of the 12 registers (zeros, status words,
   product id, ASCII, echo, RTC, state machines, setpoints…). A full address scan (1–247, FC03/FC04) found no
   hidden slave, so the module must talk to the display through those 12 registers — format unknown.
@@ -56,6 +63,10 @@ A full **read-only register map with certainty levels** (0x02 operating data, 0x
 SG Ready decoding) lives in **ryckema's ESPHome project for the iTec XTR M**:
 https://github.com/ryckema/Thermia_itec — please add new findings there or here, we cross-check both.
 
+**Reading both maps side by side:** that project addresses registers in hex, this one in decimal, and they are
+the same numbers — `0xB3B0` = 46000, `0xB3C5` = 46021, `0xA80F` = 43023, `0x03F4` = 1012. What it calls "FC17"
+is function code `0x17` = **FC23** (Read/Write Multiple Registers), not Report Slave ID.
+
 What this repo adds (iTec Eco 8 / DHP-AQ board). **Confirmed** = matched against the service display;
 **candidate** = observed, not yet cross-checked — corrections welcome:
 
@@ -67,8 +78,16 @@ What this repo adds (iTec Eco 8 / DHP-AQ board). **Confirmed** = matched against
 | `0x02` FC23 write | @43020 | bit 6 (0x40) set while the compressor / hot-water flow is active; other bits not understood | candidate |
 | `0x1E` FC16 | @1 | target supply temperature ÷10, written by the display to the outdoor unit | confirmed |
 | `0x1E` FC04 | @11, 12, 13, 14, 16 | compressor Hz, max-frequency ratio %, current ÷10 A, fan rpm, EEV steps | confirmed |
-| `0x1E` FC04 | @20, 21 | status words (bitfields) — we had them mislabelled as superheat / subcooling | candidate |
-| `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, SG Ready room offset (0 / 2) | confirmed / ryckema |
+| `0x1E` FC04 | @20 | outdoor-unit operating state: **16** idle, **24** transition, **28/29** heating / DHW, **30/31** cooling, **20** autonomous outdoor-unit sequence (*not* defrost) | confirmed — we watched 29 → 28 → 24 → 16 on our unit |
+| `0x1E` FC04 | @21 | status word (bitfield) — we had @20/@21 mislabelled as superheat / subcooling | candidate |
+| `0x02` FC23 write | @43023 | control/sequencing value: 5 and 10 when idle, ramps **80 → 100** in steps of 1 (~2 min) early in a heating cycle, then holds 100 | confirmed values, meaning open |
+| `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, unused | confirmed / ryckema |
+| `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, third word (0 / 2, meaning unknown) | confirmed / ryckema |
+
+One negative result worth recording, since `0x02` @43023 is easy to misread as a modulation level: during a
+heating cycle it ramped 80 → 100 while the **compressor frequency sat flat at 38–39 Hz** the whole time, and it
+stayed at 100 for the remaining ~27 minutes of the run. So it is not compressor output, load or a percentage —
+it behaves like a counter that saturates at 100.
 
 Not listed on purpose: everything about the electric heater (bits in @43020/@43021, `0x1E` command registers) —
 our earlier reading of those turned out to be wrong and is being re-verified.
