@@ -44,14 +44,45 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
 - **Room sensor slot works when emulated:** answer `0A 17 06 <room temp ×10> 00 00 00 00 CRC` (reg1 = reg2 = 0,
   exactly what a genuine 086U9563 returns, e.g. `0A 17 06 00 DD 00 00 00 00 BE A9` = 22.1 °C) and the display
   auto-detects a room sensor and uses the value for room compensation (verified: 18 °C → heating, 28 °C → cooling).
-  We now know *why* zeros are correct. Per ryckema's v26 analysis, the three reply registers are
-  **@46000 = room temperature ×10, @46001 = pending setpoint request, @46002 = unused** — so a sensor with
-  nothing to request answers 0. (An early emulator of ours echoed the pushed setpoint into @46001 by accident;
-  that is a bug, not a flag.)
-- **Untested idea, open to anyone:** if @46001 really is a *setpoint request* channel, a room sensor can ask the
-  controller to change the setpoint — a second, cleaner control path than faking the measured room temperature.
-  Nobody has tried it: the ESPHome projects are deliberately receive-only. Writes to the setpoint *mirrors*
-  (`0x0A` @46021, `0x0F` @1012) are known **not** to work — the display owns those.
+  We now know *why* zeros are correct. The three reply registers are **@46000 = room temperature ×10,
+  @46001 = pending setpoint request, @46002 = unused** — so a sensor with nothing to request answers 0.
+  The meanings come from ryckema's v26 analysis; @46001 has since been confirmed here by transmitting
+  (see below). (An early emulator of ours echoed the pushed setpoint into @46001 by accident; that is a
+  bug, not a flag.)
+- **Setpoint request works — tested, second control path.** @46001 really is a request channel: put a value
+  there and the controller adopts it as the room setpoint. Encoding is **×1** (19 means 19 °C), unlike @46000
+  which is ×10. This is cleaner than the older trick of faking the measured room temperature, and it is worth
+  knowing that writes to the setpoint *mirrors* (`0x0A` @46021, `0x0F` @1012) do **not** work — the display
+  owns those. Measured with the pump heating, 12 °C outside:
+
+  | step | reg1 sent | room setpoint |
+  |---|---|---|
+  | control | 0 | 18, unchanged |
+  | no-op | 18 | 18, unchanged, controller unbothered |
+  | request up | 19 | 18 → **19** |
+  | request down | 18 | 19 → **18** |
+  | repeat | 19 | **19** again |
+  | release | 0 | **stays 19** |
+
+  What rules out an echo: every change also appeared in @46021, the *master's own push* back to the sensor
+  slot, i.e. the controller rebroadcasting the value as its setpoint. Had it ignored @46001, that word would
+  have stayed at 18. Semantics are those of a physical dial — the controller stores the setpoint, @46001 is a
+  request to change it, and 0 means "nothing to request", not "clear it". Send it once. Restoring a previous
+  value means requesting it; switching the emulation off does not bring it back.
+
+  One trap if you repeat this: make the release step use a value **different** from the panel's original
+  setpoint. Our first attempt requested 18 while the panel also said 18, so "latched" and "reverted to panel"
+  predicted the same observation and settled nothing.
+
+  Caveat on effect size: throughout the above the supply setpoint stayed at 25.0 °C and the compressor at
+  15 Hz, because the supply target was sitting exactly on the heating-curve minimum and absorbing everything.
+  The setpoint changes were real; at 12 °C outside they had nowhere to go.
+- **Open question — is @46022 an alarm indicator?** The third word of the display's push to the sensor slot
+  reads a constant 0 here; ryckema logged 0 and 2. Thermia's catalogue describes the Modbus room sensor as
+  displaying an *alarm*, and an alarm that is displayed has to travel display→sensor, which makes that word
+  the obvious carrier. Useful if true: pump faults are otherwise only visible by walking to the panel (we have
+  had E911, the flow-switch fault, from silted-up filters). **If your pump alarms while you are sniffing,
+  please check what @46022 does** — that single observation would settle it.
 - **Online-module slot does not activate** with any guessed content of the 12 registers (zeros, status words,
   product id, ASCII, echo, RTC, state machines, setpoints…). A full address scan (1–247, FC03/FC04) found no
   hidden slave, so the module must talk to the display through those 12 registers — format unknown.
