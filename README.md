@@ -93,9 +93,15 @@ behaviour, and the transmit-side findings.
 | `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, third word (0 / 2, meaning unknown) | confirmed / ryckema |
 
 A warning about the `0x1E` FC04 block at **@30–51**: it looks like a copy of @0–21 (@40 lines up with @10,
-@50/@51 with @20/@21), but it is **frozen**, not a live mirror. On a day when @20 and @21 changed six times
-through a hot-water cycle and a switch to heating, @40/@50/@51 did not move at all — it behaves like a
-snapshot taken at init. Do not decode it as live state.
+@50/@51 with @20/@21), but **it is not a live mirror — do not decode it as current state.** It does change,
+only far more rarely and out of step: on one day @21 went 577 → 65 → 33 → 545 → 577 → 545 → 577 → 65 while
+@51 moved just three times, taking the same values (65, 545, 577) hours later; @40 behaved the same way and
+one of its values (250) matched @10's 25.0 °C. So it looks like a delayed or latched copy. The mechanism is
+unknown and I have not measured the lag — treat the pairing as unconfirmed.
+
+*(Correction: an earlier version of this README called that block "frozen, a snapshot taken at init". That
+was wrong — it came from querying a full day's history in the morning, before the day was over, and reading
+a single unchanged value as "never moved". Corrected the same day.)*
 
 One negative result worth recording, since `0x02` @43023 is easy to misread as a modulation level: during a
 heating cycle it ramped 80 → 100 while the **compressor frequency sat flat at 38–39 Hz** the whole time, and it
