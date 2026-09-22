@@ -82,22 +82,30 @@ behaviour, and the transmit-side findings.
 | `0x0F` FC16 | @1011 | High power (1 = on) | confirmed (A/B on the display) |
 | `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence % | confirmed (display menu) |
 | `0x0F` FC16 | @1090–1102 | Cooling menu: cooling on, desired temp, mode-active limit, time, room sensor, hysteresis low/high (÷10 K) | candidate |
-| `0x02` FC23 write | @43020 | bit 6 (0x40) set while the compressor / hot-water flow is active; other bits not understood | candidate |
+| `0x02` FC23 write | @43020 | controller context: **bit 0** (0x01) = hot-water request, **bit 6** (0x40) = compressor running. Seen as 0 → 65 at DHW start → 64 when DHW ends and the compressor keeps going in heating | confirmed (watched a full DHW → heating handover) |
 | `0x1E` FC16 | @1 | target supply temperature ÷10, written by the display to the outdoor unit | confirmed |
 | `0x1E` FC04 | @11, 12, 13, 14, 16 | compressor Hz, max-frequency ratio %, current ÷10 A, fan rpm, EEV steps | confirmed |
 | `0x1E` FC04 | @20 | outdoor-unit operating state: **16** idle, **24** transition, **28/29** heating / DHW, **30/31** cooling, **20** autonomous outdoor-unit sequence (*not* defrost) | enum from ryckema; confirmed here — we logged 29 → 28 → 24 → 16 on our own unit |
-| `0x1E` FC04 | @21 | status word (bitfield) — we had @20/@21 mislabelled as superheat / subcooling | candidate |
+| `0x1E` FC04 | @21 | status bitfield: **0x0020** heating context, **0x0040** hot-water context, **0x0200** outdoor unit active. Observed 577 → 65 → 33 → 545 across one DHW → heating handover (we had @20/@21 mislabelled as superheat / subcooling) | bits from ryckema; confirmed here in both modes |
+| `0x1E` FC16 | @4 | mode request: **1** = heating, **2** = hot water (3 = cooling per ryckema, not seen here yet) | enum from ryckema; the 2 → 1 switch confirmed here |
 | `0x02` FC23 write | @43023 | control/sequencing value: 5 and 10 when idle, ramps **80 → 100** in steps of 1 (~2 min) early in a heating cycle, then holds 100 | confirmed values, meaning open |
 | `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, unused | confirmed / ryckema |
 | `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, third word (0 / 2, meaning unknown) | confirmed / ryckema |
+
+A warning about the `0x1E` FC04 block at **@30–51**: it looks like a copy of @0–21 (@40 lines up with @10,
+@50/@51 with @20/@21), but it is **frozen**, not a live mirror. On a day when @20 and @21 changed six times
+through a hot-water cycle and a switch to heating, @40/@50/@51 did not move at all — it behaves like a
+snapshot taken at init. Do not decode it as live state.
 
 One negative result worth recording, since `0x02` @43023 is easy to misread as a modulation level: during a
 heating cycle it ramped 80 → 100 while the **compressor frequency sat flat at 38–39 Hz** the whole time, and it
 stayed at 100 for the remaining ~27 minutes of the run. So it is not compressor output, load or a percentage —
 it behaves like a counter that saturates at 100.
 
-Not listed on purpose: everything about the electric heater (bits in @43020/@43021, `0x1E` command registers) —
-our earlier reading of those turned out to be wrong and is being re-verified.
+Not listed on purpose: everything about the **electric heater**. We had mapped it to *other* bits of @43020,
+to @43021 and to `0x1E` command registers; that reading turned out to be wrong and is still being re-verified,
+so none of it is published. (Bits 0 and 6 of @43020 above are a separate, confirmed matter — hot-water request
+and compressor, nothing to do with the heater.)
 
 **Transmitting on the bus works** (room-sensor emulation, see above): the display waits ~145 ms for a slave reply,
 so a slave only has to keep the ≥3.5-character silence before answering. There is no arbitration problem as long as
