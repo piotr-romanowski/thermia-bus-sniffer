@@ -113,7 +113,7 @@ behaviour, and the transmit-side findings.
 | `0x0F` FC16 | @1011 | High power (1 = on) | confirmed (A/B on the display) |
 | `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence % | confirmed (display menu) |
 | `0x0F` FC16 | @1090–1102 | Cooling menu: cooling on, desired temp, mode-active limit, time, room sensor, hysteresis low/high (÷10 K) | candidate |
-| `0x02` FC23 write | @43020 | controller context: **bit 0** (0x01) = hot-water request, **bit 6** (0x40) = compressor running. Seen as 0 → 65 at DHW start → 64 when DHW ends and the compressor keeps going in heating | confirmed (watched a full DHW → heating handover) |
+| `0x02` FC23 write | @43020 | controller context: **bit 0** (0x01) = hot-water request, confirmed (watched a full DHW → heating handover: 0 → 65 → 64). **Bit 6** (0x40) is a heating/auto context, **not** "compressor running": it stays set through compressor stops and through heating-stop, with the compressor at 0 Hz. Read compressor state from `0x1E` FC04 @11/13 instead | bit 0 confirmed, bit 6 = context (corrected) |
 | `0x1E` FC16 | @1 | target supply temperature ÷10, written by the display to the outdoor unit | confirmed |
 | `0x1E` FC04 | @11, 12, 13, 14, 16 | compressor Hz, max-frequency ratio %, current ÷10 A, fan rpm, EEV steps | confirmed |
 | `0x1E` FC04 | @20 | outdoor-unit operating state: **16** idle, **24** transition, **28/29** heating / DHW, **30/31** cooling, **20** autonomous outdoor-unit sequence (*not* defrost) | enum from ryckema; confirmed here — we logged 29 → 28 → 24 → 16 on our own unit |
@@ -141,8 +141,8 @@ it behaves like a counter that saturates at 100.
 
 Not listed on purpose: everything about the **electric heater**. We had mapped it to *other* bits of @43020,
 to @43021 and to `0x1E` command registers; that reading turned out to be wrong and is still being re-verified,
-so none of it is published. (Bits 0 and 6 of @43020 above are a separate, confirmed matter — hot-water request
-and compressor, nothing to do with the heater.)
+so none of it is published. (Bits 0 and 6 of @43020 above are a separate matter — hot-water request and heating
+context, nothing to do with the heater.)
 
 **Transmitting on the bus works** (room-sensor emulation, see above): the display waits ~145 ms for a slave reply,
 so a slave only has to keep the ≥3.5-character silence before answering. There is no arbitration problem as long as
