@@ -83,11 +83,30 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   the obvious carrier. Useful if true: pump faults are otherwise only visible by walking to the panel (we have
   had E911, the flow-switch fault, from silted-up filters). **If your pump alarms while you are sniffing,
   please check what @46022 does** — that single observation would settle it.
-- **Online-module slot does not activate** with any guessed content of the 12 registers (zeros, status words,
-  product id, ASCII, echo, RTC, state machines, setpoints…). A full address scan (1–247, FC03/FC04) found no
-  hidden slave, so the module must talk to the display through those 12 registers — format unknown.
-  The old **Danfoss Link HP-kit (086L2382 / DCM03)** used this slot to control DHP-AQ pumps *locally* without
-  any cloud, so it is not cloud-gated by design. **We need one real capture.**
+- **Online-module slot: transport layer known, application layer not.** Any syntactically valid 12-register
+  reply makes the display switch its 0x06 polling from ~4.3 s to an alternating 0.7 / 1.4 s, and it keeps the
+  fast cadence for about two minutes after the replies stop. Setting reply word @45002 (`0xAFCA`) to `0x03E8`
+  makes the display write 16 to `0x0F` @2145 (`0x0861`); clearing it back to 0 clears that ACK. This is
+  ryckema's finding on the XTR M, reproduced here, so it is a platform property. `0x03E8` is a constant, not a
+  register number: 1001, 1002, 999 and 1234 give no ACK. Any non-zero value there also turns the display's
+  @45020 heartbeat from 32 to 16. The ACK is transport only — a payload of zeros is acknowledged too — and
+  no content tried so far — here: zeros, status words, product id, ASCII, echo, RTC, state machines,
+  setpoints; on the XTR M (ryckema): register/value pairs, raw Danfoss Link request bodies and more — changes anything or makes the module appear on the display. A full address scan
+  (1–247, FC03/FC04) found no hidden slave. The old **Danfoss Link HP-kit (086L2382 / DCM03)** used this slot
+  to control DHP-AQ pumps *locally* without any cloud, so it is not cloud-gated by design. **We still need one
+  real capture with a working module**; one is being arranged.
+- **The display's heartbeat to the online slot (@45020) is the heating-season condition.** Over eleven days it
+  pulsed 0 ↔ 32 (15–20 s high, period ~64 s) exactly when the displayed outdoor temperature was below the
+  heat-stop setting (hysteresis 2–3 K); it pulsed the same way before the heating season, when the pump
+  was only making hot water. Raising and lowering the heat-stop
+  limit on the display turned it on within 31 s and off in the same second. It is a copy of bit 5 of `0x02`
+  @43022, sent with the next 0x06 poll.
+- **The controller counts time in ~63.9 s "minutes".** The mean heartbeat period over 7300 periods is 63.87 s.
+  In those units a periodic routine (a 62–68 s state in @43020 followed by a 10-minute window in @43022) repeats
+  every 1440 minutes = 25 h 33 min real time, and hot water / heating alternate every 30 minutes (1916–1922 s)
+  when both are demanded, matching the display's two 30-minute settings. A prediction made from this was
+  met within 117 s one day later. The routine is probably the daily one-minute circulation pump exercise
+  described in the DHP-iQ manual; that part is not yet confirmed.
 
 ## Register map (joint effort)
 
@@ -105,21 +124,22 @@ our own logged bus traffic; **candidate** = observed, not yet cross-checked — 
 Provenance, so credit lands where it belongs: the register *semantics* for `0x0A` @46000–46002 and the `0x1E` @20
 state names (including "20 is an autonomous sequence, not defrost") come from **ryckema's v26 analysis**; the
 withdrawal of the earlier "SG Ready room offset" reading of @46022 is likewise his. What is ours is the
-independent verification on a different model (iTec Eco 8 vs XTR M) from logged traffic, the `0x02` @43023
-behaviour, and the transmit-side findings.
+independent verification on a different model (iTec Eco 8 vs XTR M) from logged traffic, the output map from the
+display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findings.
 
 | Slave | Registers | Meaning | Status |
 |---|---|---|---|
 | `0x0F` FC16 | @1011 | High power (1 = on) | confirmed (A/B on the display) |
 | `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence % | confirmed (display menu) |
 | `0x0F` FC16 | @1090–1102 | Cooling menu: cooling on, desired temp, mode-active limit, time, room sensor, hysteresis low/high (÷10 K) | candidate |
-| `0x02` FC23 write | @43020 | controller context: **bit 0** (0x01) = hot-water request, confirmed (watched a full DHW → heating handover: 0 → 65 → 64). **Bit 6** (0x40) is a heating/auto context, **not** "compressor running": it stays set through compressor stops and through heating-stop, with the compressor at 0 Hz. Read compressor state from `0x1E` FC04 @11/13 instead | bit 0 confirmed, bit 6 = context (corrected) |
+| `0x02` FC23 write | @43020 | controller **output** bitfield, mapped with the display's MANUAL TEST (one output at a time, power meter logged): **bit 0** reversing valve on hot water, **bit 1** cooling by-pass, **bit 2** potential-free aux output, **bit 3** external aux heater, **bit 6** controller active (0 when the operating mode is Off — not "compressor running"), **bit 7** immersion heater stage 1 (+2.7 kW measured). Bit 5 unassigned (seen with the external aux heater). Read compressor state from `0x1E` FC04 @11/13 | confirmed (manual test) |
+| `0x02` FC23 write | @43021 | **bit 4** = immersion heater stage 2 (+5.2 kW measured) | confirmed (manual test) |
 | `0x1E` FC16 | @1 | target supply temperature ÷10, written by the display to the outdoor unit | confirmed |
 | `0x1E` FC04 | @11, 12, 13, 14, 16 | compressor Hz, max-frequency ratio %, current ÷10 A, fan rpm, EEV steps | confirmed |
-| `0x1E` FC04 | @20 | outdoor-unit operating state: **16** idle, **24** transition, **28/29** heating / DHW, **30/31** cooling, **20** autonomous outdoor-unit sequence (*not* defrost) | enum from ryckema; confirmed here — we logged 29 → 28 → 24 → 16 on our own unit |
+| `0x1E` FC04 | @20 | outdoor-unit state **bitfield**: **0x01** compressor running, **0x04** outdoor fan turning, **0x08** water flow / circulation pump, **0x10** always set — each bit matched its signal in 100.0 % of ~20 000 samples over seven days. So 16 idle, 24 pump, 28 pump + fan, 29 + compressor; 20 = fan alone (ryckema's "autonomous sequence", *not* defrost). A reverse-cycle defrost should show as 25 (0x19), not yet seen | confirmed here; values and the "20 is not defrost" note from ryckema |
 | `0x1E` FC04 | @21 | status bitfield: **0x0020** heating context, **0x0040** hot-water context, **0x0200** outdoor unit active. Observed 577 → 65 → 33 → 545 across one DHW → heating handover (we had @20/@21 mislabelled as superheat / subcooling) | bits from ryckema; confirmed here in both modes |
 | `0x1E` FC16 | @4 | mode request: **1** = heating, **2** = hot water (3 = cooling per ryckema, not seen here yet) | enum from ryckema; the 2 → 1 switch confirmed here |
-| `0x02` FC23 write | @43023 | control/sequencing value: 5 and 10 when idle, ramps **80 → 100** in steps of 1 (~2 min) early in a heating cycle, then holds 100 | confirmed values, meaning open |
+| `0x02` FC23 write | @43023 | **circulation (condenser) pump speed, %**: follows the MANUAL TEST "CONDENSER PUMP" setting step for step (30 → 40 → 50…); 5 = pump stopped, 10 = idle, 80 while a heater runs; the 80 → 100 ramp at the start of a heating cycle is the pump spinning up | confirmed (manual test) |
 | `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, unused | confirmed / ryckema |
 | `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, third word (0 / 2, meaning unknown) | confirmed / ryckema |
 
@@ -134,15 +154,14 @@ unknown and I have not measured the lag — treat the pairing as unconfirmed.
 was wrong — it came from querying a full day's history in the morning, before the day was over, and reading
 a single unchanged value as "never moved". Corrected the same day.)*
 
-One negative result worth recording, since `0x02` @43023 is easy to misread as a modulation level: during a
-heating cycle it ramped 80 → 100 while the **compressor frequency sat flat at 38–39 Hz** the whole time, and it
-stayed at 100 for the remaining ~27 minutes of the run. So it is not compressor output, load or a percentage —
-it behaves like a counter that saturates at 100.
+*(Correction: an earlier version described `0x02` @43023 as "a counter that saturates at 100", because it
+ramped 80 → 100 while the compressor frequency stayed flat. It is the circulation pump speed — the display's
+manual test moves it directly.)*
 
-Not listed on purpose: everything about the **electric heater**. We had mapped it to *other* bits of @43020,
-to @43021 and to `0x1E` command registers; that reading turned out to be wrong and is still being re-verified,
-so none of it is published. (Bits 0 and 6 of @43020 above are a separate matter — hot-water request and heating
-context, nothing to do with the heater.)
+**Electric heater: now confirmed.** Earlier versions left the heater out because an observation had made us
+doubt our mapping. The display's MANUAL TEST settled it with a power meter: stage 1 = @43020 bit 7 (+2.7 kW),
+stage 2 = @43021 bit 4 (+5.2 kW). The `0x1E` command registers @2 and @8 did not move with either stage, so
+they are not heater controls (@8 is the outdoor unit run enable).
 
 **Transmitting on the bus works** (room-sensor emulation, see above): the display waits ~145 ms for a slave reply,
 so a slave only has to keep the ≥3.5-character silence before answering. There is no arbitration problem as long as
