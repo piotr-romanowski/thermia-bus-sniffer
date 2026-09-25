@@ -78,11 +78,15 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   15 Hz, because the supply target was sitting exactly on the heating-curve minimum and absorbing everything.
   The setpoint changes were real; at 12 °C outside they had nowhere to go.
 - **Open question — is @46022 an alarm indicator?** The third word of the display's push to the sensor slot
-  reads a constant 0 here; ryckema logged 0 and 2. Thermia's catalogue describes the Modbus room sensor as
+  reads 0 here (apart from the one event below); ryckema logged 0 and 2. Thermia's catalogue describes the Modbus room sensor as
   displaying an *alarm*, and an alarm that is displayed has to travel display→sensor, which makes that word
   the obvious carrier. Useful if true: pump faults are otherwise only visible by walking to the panel (we have
   had E911, the flow-switch fault, from silted-up filters). **If your pump alarms while you are sniffing,
   please check what @46022 does** — that single observation would settle it.
+  *Update, one observation (n = 1): the word went 0 → 2 when an extra hot water run ("top-up", started from the
+  display's normal hot water menu) began, stayed 2 for 67 minutes and returned to 0 when the run was cancelled,
+  while the display's alarm log was empty (last entry months old). So it may flag that run instead of an alarm;
+  a single event is not enough to say. Real alarm observations are still wanted.*
 - **Online-module slot: transport layer known, application layer not.** Any syntactically valid 12-register
   reply makes the display switch its 0x06 polling from ~4.3 s to an alternating 0.7 / 1.4 s, and it keeps the
   fast cadence for about two minutes after the replies stop. Setting reply word @45002 (`0xAFCA`) to `0x03E8`
@@ -91,10 +95,24 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   register number: 1001, 1002, 999 and 1234 give no ACK. Any non-zero value there also turns the display's
   @45020 heartbeat from 32 to 16. The ACK is transport only — a payload of zeros is acknowledged too — and
   no content tried so far — here: zeros, status words, product id, ASCII, echo, RTC, state machines,
-  setpoints; on the XTR M (ryckema): register/value pairs, raw Danfoss Link request bodies and more — changes anything or makes the module appear on the display. A full address scan
+  setpoints; on the XTR M (ryckema): register/value pairs, raw Danfoss Link request bodies and more — changes anything or makes the module appear as an application-level module. One thing does show on the display: with a valid
+  reply the VERSION page gains an `EXP` row that shows reply word @45009 (`0xAFD1`) divided by 10 (16, 0, 10, 1 gave
+  1.6, 0.0, 1.0, 0.1 here, four values and four matches; ryckema found this on the XTR M). The row disappears about
+  2 min 15 s after the replies stop; the COMM.KIT row is a separate entry and never changed. Version metadata only. A full address scan
   (1–247, FC03/FC04) found no hidden slave. The old **Danfoss Link HP-kit (086L2382 / DCM03)** used this slot
-  to control DHP-AQ pumps *locally* without any cloud, so it is not cloud-gated by design. **We still need one
-  real capture with a working module**; one is being arranged.
+  to control DHP-AQ pumps *locally* without any cloud, so it is not cloud-gated by design. A real capture with a working module now exists (an ATEC with a DCM3,
+  shared in GitHub discussion 143 of klejejs/ha-thermia-heat-pump-integration, read by ryckema and by us). In it
+  `0x06` is polled but never answered. The controller polls `0xA5` and `0x0F` (FC03) instead and writes state blocks to
+  `0x0F` (FC16), which the module acknowledges. In the DCM power-up log `0xA5` answers from 0.6 s while `0x0F` stays
+  silent until the module boots at ~67 s, so `0xA5` is not the module; when the module appears the controller repeats
+  its whole FC16 state dump within 30 s (one log each; two logs total). What enables that extended polling in the
+  controller is still unknown: this display never sends those FC03 polls (40 minutes passive, 17 789 frames: no FC03
+  to `0x0F`, `0xA4`, `0xA5` or `0xC8`).
+- **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
+  display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
+  the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
+  (aux heater max step, heating time; one of them with a full exit from the service menu) left no trace on the bus.
+  Merely browsing menu pages sends nothing new.
 - **The display's heartbeat to the online slot (@45020) is the heating-season condition.** Over eleven days it
   pulsed 0 ↔ 32 (15–20 s high, period ~64 s) exactly when the displayed outdoor temperature was below the
   heat-stop setting (hysteresis 2–3 K); it pulsed the same way before the heating season, when the pump
