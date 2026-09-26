@@ -5,9 +5,11 @@ Passive sniffer for the internal **RS485 / Modbus RTU** bus of **Thermia / Danfo
 One file, no transmit, `pyserial` only.
 
 Why it exists: a few of us are reverse-engineering this bus to integrate the pumps with Home Assistant
-without Thermia Connect. **The one thing still missing is a capture of a real online module** (Thermia
-Connect / Thermia Online / "Link 2.1 & Online" / Danfoss DCM / Danfoss Link HP-kit) talking to the display.
-If you own one of those, a 60-second capture with this tool would unlock remote control for the whole family.
+without Thermia Connect. A first set of real captures with an online module (an ATEC with a DCM3) now exists in
+GitHub discussion 143 of klejejs/ha-thermia-heat-pump-integration. **Still missing:** (1) an **iTec / iTec Eco with a
+real online module or gateway** (Thermia Connect / Thermia Online / Danfoss DCM / Danfoss Link HP-kit), ideally including a
+**cold start recorded from the very first frame**, and (2) an **ATEC start with the module disconnected**.
+If you own one of those, a capture with this tool would help the whole family of pumps.
 
 ## Quick start
 
@@ -17,6 +19,8 @@ If you own one of those, a 60-second capture with this tool would unlock remote 
 2. `pip install pyserial`
 3. `python thermia_bus_sniffer.py --com COM6 --seconds 90` (Linux: `--com /dev/ttyUSB0`)
 4. Post / send the file `thermia_capture_<timestamp>.log`. It contains only bus frames (hex), nothing personal.
+   The timestamps are seconds since the start of the capture, so **write down the wall-clock time you started it** and the time of every action.
+   For a **cold start**: start the sniffer first, power the adapter independently of the heat pump (otherwise the first seconds are lost), then switch the pump off and on.
 
 If you use an RS485↔TCP bridge (e.g. Elfin EE11A) instead: `--tcp <ip>:8899`.
 To see only the online-module slot decoded: `--focus 0x06`. To re-decode a saved log: `--replay file.log`.
