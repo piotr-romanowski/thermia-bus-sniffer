@@ -128,8 +128,11 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   Only after a reply does the display start acknowledging FC16, dump its whole state and poll a mailbox at `@1800`
   (same model as the ATEC/DCM captures above: an app-side change sets a mailbox word, the display then reads and
   applies the corresponding settings page — e.g. word 1 = 1 → read `@1000` count 14, index `@1012` follows the new
-  room setpoint). Without the gateway connected, none of that happens — matching this Eco 8, which never sends the
-  `@1820` challenge at all (why is open). Open question for anyone who can power-cycle an iTec while capturing:
+  room setpoint). Without the gateway connected, none of that happens. (An earlier version said this Eco 8 never sends the
+  `@1820` challenge; that was based on steady-state captures only. ryckema has since shown on the XTR M that the
+  unanswered stream starts ~1.3 s after power-up and stops by itself after ~267 s / 63 requests, so a cold-start
+  capture is needed before saying anything about the Eco 8. On the XTR M the 16 bytes are a clock/service record,
+  129 of 129 frames; on this Eco 5 with a real gateway they are not — two regimes, trigger unknown.) Open question for anyone who can power-cycle an iTec while capturing:
   does your display send the `@1820`/`@1840` exchange even with nothing answering, and if a gateway ever answers,
   do the 16 bytes look random to you too? Raw log (shared by its owner, name withheld by request):
   [`captures/itec_eco5_gateway_20260926.log`](captures/itec_eco5_gateway_20260926.log). Discuss on the HA
