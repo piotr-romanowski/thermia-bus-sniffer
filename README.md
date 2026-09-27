@@ -137,6 +137,18 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   do the 16 bytes look random to you too? Raw log (shared by its owner, name withheld by request):
   [`captures/itec_eco5_gateway_20260926.log`](captures/itec_eco5_gateway_20260926.log). Discuss on the HA
   Community thread or GitHub discussion 143 above.
+- **What the gateway does right after answering (Eco 5 log, both gateway power-ups).** Once the 16-byte reply
+  arrives, from the very next controller frame the gateway ACKs each FC16 block within ~40 ms (a few only on the
+  controller's ~1.4 s retry), in this order: `03E8/14, 03FC/11, 0410/22, 042E/15, 0442/13, 0456/12, 046A/18,
+  047E/19, 0492/11, 04BA/22, 04D8/27, 04F6/14, 050A/19, 051E/10, 0532/18, 0546/20`, then `055A…06C5` in
+  33-register blocks, then `06EA/7, 06F1/3, 06F4/19, 07D0/19, 07E4/17, 07F8/17, 080C/18, 0820/18, 0834/18,
+  0848/23, 0864/4`. The first block after the gate is `03E8/14`, the second `03FC/11` (not `0410`). The first
+  `@1800`/`0708` mailbox poll falls in the middle of that chain; its idle answer is `0000 0000 0000 0000 0100 0000`.
+  The two passive families `04A6/13` and `085F/5` are ACKed either just before the reply or mid-chain, so they are
+  not a precondition. In steady state the fifth mailbox word counts down (988 → 984 → 976 → 908 → 896 → 768 → 512
+  → 0 over ~2 min), which reads like pending sync items being cleared (interpretation). So a minimal iTec endpoint
+  is: answer the challenge → ACK `03E8/14` and every following block → answer `0708` with the idle image. Frame by
+  frame in the hosted log.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
   the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
