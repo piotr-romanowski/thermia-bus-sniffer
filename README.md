@@ -6,9 +6,10 @@ One file, no transmit, `pyserial` only.
 
 Why it exists: a few of us are reverse-engineering this bus to integrate the pumps with Home Assistant
 without Thermia Connect. A first set of real captures with an online module (an ATEC with a DCM3) now exists in
-GitHub discussion 143 of klejejs/ha-thermia-heat-pump-integration. **Still missing:** (1) an **iTec / iTec Eco with a
-real online module or gateway** (Thermia Connect / Thermia Online / Danfoss DCM / Danfoss Link HP-kit), ideally including a
-**cold start recorded from the very first frame**, and (2) an **ATEC start with the module disconnected**.
+GitHub discussion 143 of klejejs/ha-thermia-heat-pump-integration, and a first capture from an **iTec with a real
+Thermia Online gateway**, cold start included, has been analysed (see below) and its owner has been pointed at that
+discussion and at the HA Community thread to share the raw log directly. **Still missing:** (1) more of that same
+case, ideally with several cold starts in one file, and (2) an **ATEC start with the module disconnected**.
 If you own one of those, a capture with this tool would help the whole family of pumps.
 
 ## Quick start
@@ -112,6 +113,26 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   its whole FC16 state dump within 30 s (one log each; two logs total). What enables that extended polling in the
   controller is still unknown: this display never sends those FC03 polls (40 minutes passive, 17 789 frames: no FC03
   to `0x0F`, `0xA4`, `0xA5` or `0xC8`).
+- **On an iTec (not ATEC), a real gateway pairs on `0x0F`, not on `0x06` at all.** A first capture from an iTec Eco 5
+  with a genuine Thermia Online gateway (three power cycles: with gateway, without, with) shows every poll to `0x06`
+  and to `0x0A` going unanswered throughout, and no `0xA5`/`0xA4`/`0xC8` traffic either (those look ATEC-specific).
+  Instead, the display repeats an FC17 request to `0x0F` — read `@1840` count 8, write `@1820` count 8, 16 bytes —
+  every ~4.2 s from power-on. ryckema had already found this exact slot on the XTR M without a gateway attached (no
+  reply ever seen there) and read the 16-byte write as the controller's own RTC/calendar. Across ~90 distinct values
+  in the new capture that decoding does not hold on a single word, including the two words he found constant — the
+  values look closer to noise, and one exact 16-byte repeat 4 s apart looks like a retry of an unanswered exchange
+  rather than a clock tick. Two matching challenge/response pairs were captured, apparently the first replies on
+  `@1840` recorded anywhere:
+  `63cefb32c6f41382087992370caceeba` → `1691a5f3f8e8d58738924416e8e6a3d5`,
+  `31fb59fc8fb1175cd89f904d06d92ea4` → `fd636ccd0f921d83ff232a1a2413b372`.
+  Only after a reply does the display start acknowledging FC16, dump its whole state and poll a mailbox at `@1800`
+  (same model as the ATEC/DCM captures above: an app-side change sets a mailbox word, the display then reads and
+  applies the corresponding settings page — e.g. word 1 = 1 → read `@1000` count 14, index `@1012` follows the new
+  room setpoint). Without the gateway connected, none of that happens — matching this Eco 8, which never sends the
+  `@1820` challenge at all (why is open). Open question for anyone who can power-cycle an iTec while capturing:
+  does your display send the `@1820`/`@1840` exchange even with nothing answering, and if a gateway ever answers,
+  do the 16 bytes look random to you too? The raw log is a third party's and not republished here; ask on the HA
+  Community thread or GitHub discussion 143 above.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
   the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
