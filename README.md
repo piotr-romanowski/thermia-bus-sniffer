@@ -131,7 +131,8 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   room setpoint). Without the gateway connected, none of that happens — matching this Eco 8, which never sends the
   `@1820` challenge at all (why is open). Open question for anyone who can power-cycle an iTec while capturing:
   does your display send the `@1820`/`@1840` exchange even with nothing answering, and if a gateway ever answers,
-  do the 16 bytes look random to you too? The raw log is a third party's and not republished here; ask on the HA
+  do the 16 bytes look random to you too? Raw log (shared by its owner, name withheld by request):
+  [`captures/itec_eco5_gateway_20260926.log`](captures/itec_eco5_gateway_20260926.log). Discuss on the HA
   Community thread or GitHub discussion 143 above.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
