@@ -173,9 +173,12 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
     controller starts a second full sync from `03E8/14` → third word `ff80`/`ff00`/`e000`/`c000` → `8000` → `0000`
     with fifth word `03dc`, then the fifth-word countdown.
 - **A recorded response is accepted at the entry point — whether the rest of the session depends on it is open.**
-  Working from these captures, ryckema replayed one recorded `0730` response on his own XTR M against a *different*
-  local `071C` challenge, and the controller accepted it and entered the same synchronization state machine the
-  Eco 5 log shows. He has reproduced the block chain locally all the way to the mailbox phase. The six captured
+  Note this is a Modbus-layer handshake, not an account login: no token or credential is exchanged on the bus, the
+  cloud account lives above the gateway, and the gateway computes each response locally in 30–60 ms rather than
+  fetching it. The challenges also stop after the first accepted response, so it is a one-time gate, not continuous
+  checking. Working from these captures, ryckema replayed one recorded `0730` response on his own XTR M against a
+  *different* local `071C` challenge, and the controller accepted it and entered the same synchronization state
+  machine the Eco 5 log shows. He has reproduced the block chain locally all the way to the mailbox phase. The six captured
   responses are all different and computed by the gateway within 30–60 ms of each challenge (local, not a cloud
   round trip), so the gateway clearly does compute a challenge-bound reply; what is not known is how much of that
   the controller checks later. The replay stalls before `07D0` with an Online communication alarm, which could be a
