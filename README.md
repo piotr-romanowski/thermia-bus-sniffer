@@ -180,7 +180,10 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   round trip), so the gateway clearly does compute a challenge-bound reply; what is not known is how much of that
   the controller checks later. The replay stalls before `07D0` with an Online communication alarm, which could be a
   later check failing or simply the missing `085F` ACK described above. His next test (ACK `085F` once, on a
-  replayed response) should separate the two. Until then this is progress, not a working replacement.
+  replayed response) should separate the two. Until then this is progress, not a working replacement. One key
+  guess has already been ruled out: an HMAC-SHA256 of the challenge with the gateway serial number as the key,
+  tested against all six known pairs in many variants, reproduces none of them, so a serial-derived HMAC is not
+  it; the key, if any, is not something printed on the unit.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
   the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
