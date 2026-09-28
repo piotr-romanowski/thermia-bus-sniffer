@@ -172,6 +172,15 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
     `…0100 0000` a few times → `0000 0000 4000 8000 010b 0000` → `0000 0000 ffff 867f 03df 0000`, after which the
     controller starts a second full sync from `03E8/14` → third word `ff80`/`ff00`/`e000`/`c000` → `8000` → `0000`
     with fifth word `03dc`, then the fifth-word countdown.
+- **The response side is validated weakly, if at all — the hard part is on the gateway, not the controller.**
+  Working from these captures, ryckema replayed one recorded `0730` response on his own XTR M against a *different*
+  local `071C` challenge, and the controller accepted it and entered the same synchronization state machine the
+  Eco 5 log shows. He has reproduced the block chain locally all the way to the mailbox phase. So although the six
+  captured responses are all different and computed by the gateway within 30–60 ms of each challenge (local, not a
+  cloud round trip), a controller does not appear to check that the response actually matches its own challenge. A
+  full session has not been reproduced yet — the replay reaches the `0708` mailbox and then stalls before `07D0`,
+  which is where the `085F` ACK ordering above becomes the next thing to test. Net: emulating the gateway looks more
+  like replaying a captured session than breaking a cipher, but it is not a working replacement yet.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
   the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
