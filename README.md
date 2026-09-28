@@ -145,10 +145,33 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   0848/23, 0864/4`. The first block after the gate is `03E8/14`, the second `03FC/11` (not `0410`). The first
   `@1800`/`0708` mailbox poll falls in the middle of that chain; its idle answer is `0000 0000 0000 0000 0100 0000`.
   The two passive families `04A6/13` and `085F/5` are ACKed either just before the reply or mid-chain, so they are
-  not a precondition. In steady state the fifth mailbox word counts down (988 → 984 → 976 → 908 → 896 → 768 → 512
+  not a precondition for the reply being accepted. They do look like one for the step to `07D0` (see the next
+  point). In steady state the fifth mailbox word counts down (988 → 984 → 976 → 908 → 896 → 768 → 512
   → 0 over ~2 min), which reads like pending sync items being cleared (interpretation). So a minimal iTec endpoint
   is: answer the challenge → ACK `03E8/14` and every following block → answer `0708` with the idle image. Frame by
   frame in the hosted log.
+- **Second Eco 5 capture: four more gateway sessions, and what gates `07D0`.** The same owner recorded four
+  power cycles (Off, ~10 s, On, the same action each time), all ending in a working session:
+  [`captures/itec_eco5_gateway_20260928.log`](captures/itec_eco5_gateway_20260928.log) (name withheld by request).
+  - In all seven real transitions to `07D0/19` available so far (six Eco 5 sessions, one ATEC + DCM start), the
+    all-zero `085F/5` write is ACKed before the first `07D0`. Unacked, the controller repeats it about every 2.1 s
+    indefinitely; once ACKed it stops. When it was ACKed early, `07D0` follows `06F4` within 0.1 s; when not, the
+    controller sends the pending `085F` right after `06F4`, waits for the ACK and only then writes `07D0`. The
+    mailbox reply is not what gates it: in one session `07D0` is written before the first `0708` poll. This is a
+    hypothesis from captures (7 of 7), not yet tested actively.
+  - Two start patterns with the same action: the gateway answers the challenge after ~120 s (two sessions) or after
+    only ~10 s, on the third challenge (two sessions). In both, the first FC16 ACK comes at ~118 s, so in the fast
+    case the controller repeats `03E8/14` about 100 times unacked, and the session still proceeds normally.
+  - Four new challenge/response pairs, all different, no simple byte relation (XOR/difference) across the six pairs;
+    each reply comes 30 to 60 ms after its challenge:
+    `f721e82cd172299f31f375e9bd3a0105` → `792f96654eb1bb29d0e0c37b59bae167`,
+    `01bd6eba71bff920128ab44bae2537eb` → `826ed2acbc1b3db93adec93c53087a53`,
+    `1346194da3ad49c6e90e0f8f825c5f25` → `623c2b46c284b2c985b806ac46ef6f7a`,
+    `755d73cf72a95e5a7600afa2c4dc8163` → `9a7e802926c0c24d1994c4e5a832462f`.
+  - After the first sync, the mailbox sequence is the same in all five complete sessions of both logs: idle
+    `…0100 0000` a few times → `0000 0000 4000 8000 010b 0000` → `0000 0000 ffff 867f 03df 0000`, after which the
+    controller starts a second full sync from `03E8/14` → third word `ff80`/`ff00`/`e000`/`c000` → `8000` → `0000`
+    with fifth word `03dc`, then the fifth-word countdown.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
   the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
