@@ -132,11 +132,17 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   `@1820` challenge; that was based on steady-state captures only. ryckema has since shown on the XTR M that the
   unanswered stream starts ~1.3 s after power-up and stops by itself after ~267 s / 63 requests, so a cold-start
   capture is needed before saying anything about the Eco 8. On the XTR M the 16 bytes are a clock/service record,
-  129 of 129 frames; on this Eco 5 with a real gateway they are not — two regimes, trigger unknown.) Open question for anyone who can power-cycle an iTec while capturing:
-  does your display send the `@1820`/`@1840` exchange even with nothing answering, and if a gateway ever answers,
-  do the 16 bytes look random to you too? Raw log (shared by its owner, name withheld by request):
+  129 of 129 frames; on this Eco 5 with a real gateway they are not — two regimes, trigger unknown.) Raw log (shared by its owner, name withheld by request):
   [`captures/itec_eco5_gateway_20260926.log`](captures/itec_eco5_gateway_20260926.log). Discuss on the HA
   Community thread or GitHub discussion 143 above.
+- **Cold-start answer on an iTec Eco 8 (our own pump, firmware 2.3.0, no gateway).** A passive capture across a
+  power cycle settles the earlier open question: the bare controller does emit the `071C/0730` challenge on its
+  own, in the same format (read `@1840` count 8, write `@1820` count 8, 16 bytes), starting ~1.4 s after the bus
+  returns at a ~4.28 s cadence. Two differences from the XTR M are worth noting. It gives up fast: only 6
+  challenges over ~21 s and then silence, versus the XTR's ~63 over ~267 s. And all 6 of the 16-byte payloads are
+  distinct and look like noise, not a clock — so even with no gateway and no pairing history this unit is in the
+  varying regime, not the XTR's clock regime, which means the regime is not simply a function of gateway presence.
+  Outside that short window there is only the routine `@1000`/`@2143` panel traffic and no self-generated sync.
 - **What the gateway does right after answering (Eco 5 log, both gateway power-ups).** Once the 16-byte reply
   arrives, from the very next controller frame the gateway ACKs each FC16 block within ~40 ms (a few only on the
   controller's ~1.4 s retry), in this order: `03E8/14, 03FC/11, 0410/22, 042E/15, 0442/13, 0456/12, 046A/18,
