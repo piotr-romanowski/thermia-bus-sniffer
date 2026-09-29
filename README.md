@@ -157,8 +157,13 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
     all-zero `085F/5` write is ACKed before the first `07D0`. Unacked, the controller repeats it about every 2.1 s
     indefinitely; once ACKed it stops. When it was ACKed early, `07D0` follows `06F4` within 0.1 s; when not, the
     controller sends the pending `085F` right after `06F4`, waits for the ACK and only then writes `07D0`. The
-    mailbox reply is not what gates it: in one session `07D0` is written before the first `0708` poll. This is a
-    hypothesis from captures (7 of 7), not yet tested actively.
+    mailbox reply is not what gates it: in one session `07D0` is written before the first `0708` poll. This was a
+    hypothesis from captures (7 of 7), and it has now been **confirmed actively on the XTR M** (ryckema, EXP270,
+    2026-09-29): after the proven prefix through `06F4`, ACKing exactly one all-zero `085F/5` produced the first
+    `07D0/19` ~0.5 s later, where the same run without that ACK had stalled. Notably that run used a *fixed replayed*
+    `0730` response against a *different* live challenge and still completed the whole config export up to `07D0`, so
+    a captured response carries the session at least this far; whether genuine challenge/response matters beyond that
+    point is still open.
   - Two start patterns with the same action: the gateway answers the challenge after ~120 s (two sessions) or after
     only ~10 s, on the third challenge (two sessions). In both, the first FC16 ACK comes at ~118 s, so in the fast
     case the controller repeats `03E8/14` about 100 times unacked, and the session still proceeds normally.
