@@ -26,6 +26,46 @@ If you own one of those, a capture with this tool would help the whole family of
 If you use an RS485↔TCP bridge (e.g. Elfin EE11A) instead: `--tcp <ip>:8899`.
 To see only the online-module slot decoded: `--focus 0x06`. To re-decode a saved log: `--replay file.log`.
 
+## Second tool: challenge-response oracle test (`thermia_challenge_oracle.py`)
+
+**Only useful if you own a working online gateway** (a classic DCM/DCM03, or a Thermia Connect).
+Everyone else can ignore this file; the sniffer above is the one you want.
+
+Newer controllers open a session by sending a 16-byte challenge to slot `0x0F`, and a genuine
+gateway answers it in 30-60 ms. An iTec Eco controller **verifies** that answer: replaying a
+recorded response is refused. So the open question is whether the answer depends only on the
+challenge, or also on the gateway's own pairing or session state.
+
+This script replays challenges recorded from **another** heat pump and reports any response.
+If your gateway answers a challenge from someone else's pump, the response is portable, and a
+second-hand gateway becomes a usable oracle for everyone. If it stays silent, that is worth
+knowing too.
+
+```
+pip install pyserial
+python thermia_challenge_oracle.py --port COM5 --minutes 15
+```
+
+How to run it, and why this way:
+
+* **Leave the gateway connected to your controller** and hang the adapter on the bus in
+  parallel, like the sniffer. Do not isolate the gateway: it answers only when it is ready to
+  open a session, and that readiness plausibly depends on being polled by its controller, so a
+  gateway sitting alone in silence may never answer and would produce a false negative.
+* Two devices are then transmitting as master on the same pair, so the script waits for a gap
+  of bus silence before each frame. A collision is harmless, the frame fails CRC and is
+  dropped; it only wastes a challenge.
+* **Power-cycle the gateway once while it runs**, so it passes through its start-up state with
+  the challenges already arriving.
+* **Let it run.** In two genuine captures the gateway answered 6 of 163 challenges, so a short
+  silent run means nothing.
+* If the log shows no controller traffic at all, the adapter is not hearing the bus: the run is
+  void, not negative. The script says so.
+
+Note on what is sent: these are FC23 frames, which write eight words at `071C` while reading
+eight from `0730`. That is what a challenge is. Nothing is addressed to the heat pump and no
+setting is changed anywhere, but it is not a read-only operation in Modbus terms.
+
 ## What the bus looks like (facts, measured on iTec Eco 8 / DHP-AQ board, display fw 2.3.0)
 
 - **9600 8E1**, Modbus RTU, CRC16 0xA001. **The display panel is the master**; everything else is a slave.
