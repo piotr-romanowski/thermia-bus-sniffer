@@ -75,6 +75,15 @@ CHALLENGES = [
     "0f1707300008071c00081046cb69b9296eb9f20a3320b88e17f1f4d4b4",
 ]
 
+# Positive control (ryckema's suggestion): a challenge recorded on an ATEC whose
+# own DCM03 answered it 29 ms later. The answer it produced that day was
+#     20b8f28a236f28fa0339669e2c6f600d
+# If your gateway answers this one but none of the Eco 8 challenges above, that is
+# a strong negative. If it answers neither, the run is inconclusive rather than
+# negative -- it most likely never reached a state where it answers at all.
+CONTROL = "0f1707300008071c0008102ee156572b8b84a0bc7a65c72d56185d7840"
+CONTROL_EXPECTED = "20b8f28a236f28fa0339669e2c6f600d"
+
 
 def crc16(data: bytes) -> int:
     crc = 0xFFFF
@@ -85,9 +94,23 @@ def crc16(data: bytes) -> int:
     return crc
 
 
+def find_response(buf: bytes):
+    """Find a valid 0f 17 10 <16 bytes> <CRC> anywhere in the buffer.
+
+    On a live bus the reply is not necessarily the first thing we hear: other
+    traffic, or the adapter's own echo, can arrive first.
+    """
+    for i in range(len(buf) - 20):
+        if buf[i] == 0x0F and buf[i + 1] == 0x17 and buf[i + 2] == 0x10:
+            frame = buf[i:i + 21]
+            if len(frame) == 21 and crc16(frame[:-2]) == (frame[-2] | (frame[-1] << 8)):
+                return frame[3:19]
+    return None
+
+
 def check_frames() -> list:
     frames = []
-    for hexstr in CHALLENGES:
+    for hexstr in list(CHALLENGES) + [CONTROL]:
         raw = bytes.fromhex(hexstr)
         body, crc_rx = raw[:-2], raw[-2] | (raw[-1] << 8)
         if crc16(body) != crc_rx:
@@ -128,9 +151,13 @@ def main() -> None:
                        stopbits=1, timeout=0.05) as ser, open(logname, "w") as log:
         log.write("# challenge-oracle run %s, port %s\n" % (stamp, args.port))
         idx = 0
+        control_frame = frames[-1]
+        control_hits = 0
         while time.time() < deadline:
-            frame = frames[idx % len(frames)]
-            nr = idx % len(frames) + 1
+            # every seventh frame is the positive control
+            is_control = (idx % 7) == 6
+            frame = control_frame if is_control else frames[idx % 6]
+            nr = "control" if is_control else str(idx % 6 + 1)
 
             # Wait for a quiet gap: the controller is also master on this pair.
             wait_start = time.time()
@@ -147,7 +174,7 @@ def main() -> None:
             ser.write(frame)
             ser.flush()
             sent += 1
-            log.write("%8.3f TX ch#%d %s\n" % (t0, nr, frame.hex()))
+            log.write("%8.3f TX ch#%s %s" % (t0, nr, frame.hex()) + chr(10))
 
             buf = bytearray()
             while time.time() - t0 < args.listen:
@@ -156,18 +183,21 @@ def main() -> None:
                     buf += chunk
             if buf:
                 dt = (time.time() - t0) * 1000.0
-                log.write("%8.3f RX %s\n" % (time.time(), buf.hex()))
-                if buf[:3] == b"\x0f\x17\x10" and len(buf) >= 21:
+                log.write("%8.3f RX %s" % (time.time(), buf.hex()) + chr(10))
+                payload = find_response(buf)
+                if payload is not None:
                     answers += 1
-                    print("*** ANSWER to challenge #%d after %.0f ms: %s"
-                          % (nr, dt, buf[3:19].hex()))
-                    log.write("# ANSWER payload %s\n" % buf[3:19].hex())
+                    if is_control:
+                        control_hits += 1
+                    tag = "  (control, expected %s)" % CONTROL_EXPECTED if is_control else ""
+                    print("*** ANSWER to challenge %s after %.0f ms: %s%s"
+                          % (nr, dt, payload.hex(), tag))
+                    log.write("# ANSWER ch#%s payload %s" % (nr, payload.hex()) + chr(10))
                 else:
                     other += 1
-                    print("    something on the bus after #%d (%.0f ms): %s"
-                          % (nr, dt, buf.hex()))
+                    print("    bus traffic after %s (%.0f ms), no reply" % (nr, dt))
             else:
-                print("    #%d silent" % nr)
+                print("    %s silent" % nr)
 
             idx += 1
             log.flush()
@@ -175,9 +205,14 @@ def main() -> None:
             if rest > 0:
                 time.sleep(rest)
 
-    print("\nsent %d, answers %d, other traffic %d" % (sent, answers, other))
-    if answers:
+    print("")
+    print("sent %d, answers %d (control %d), other traffic %d"
+          % (sent, answers, control_hits, other))
+    if answers > control_hits:
         print("The gateway answered a challenge from a different heat pump.")
+    elif control_hits:
+        print("It answered only the control challenge, the one its own family")
+        print("already answered once. That is a strong negative for portability.")
     else:
         print("No answer. Only meaningful if the run was long and the gateway")
         print("was power-cycled during it -- a real gateway answers only a few")
