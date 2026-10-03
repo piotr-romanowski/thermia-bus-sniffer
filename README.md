@@ -183,7 +183,32 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
     `…0100 0000` a few times → `0000 0000 4000 8000 010b 0000` → `0000 0000 ffff 867f 03df 0000`, after which the
     controller starts a second full sync from `03E8/14` → third word `ff80`/`ff00`/`e000`/`c000` → `8000` → `0000`
     with fifth word `03dc`, then the fifth-word countdown.
-- **A recorded response is accepted at the entry point — whether the rest of the session depends on it is open.**
+- **A recorded response opens the session on an XTR M but NOT on our Eco 8 — and the challenge bytes say why.**
+  Measured on our own Eco 8 on 2026-10-03: three single-frame transmits of a genuine recorded Eco 5 gateway response,
+  two different recorded bodies, answering challenge ordinal 1 and ordinal 3, one of them in the exact controller
+  state (`A80E=0000 / A80F=0005`) that the XTR work requires. All three were ignored: no `03E8/14`, and the controller
+  finished its usual burst of six challenges at ~4.25 s spacing and went quiet, bit for bit like a no-transmit
+  baseline recorded minutes earlier. The dull explanations were ruled out: the same adapter got 10/10 replies from
+  `0x1E` to an injected FC04 read in the same session, the frame is byte-identical in shape to the gateway's
+  (`0F 17 10` + 16 B + CRC), the delay was 31–37 ms against the gateway's own 30–63 ms, prior presence on the bus is
+  not needed (in 2 of 4 successful sessions in the 2026-09-28 capture the gateway had sent nothing since the bus
+  returned and was still accepted ~10 s later), and slot `0x06` is irrelevant (polled 326 and 271 times with nobody
+  answering in both gateway captures). What remains is the response value, and a byte-level comparison of challenge
+  bodies explains it:
+
+  | installation | challenges | byte positions constant (of 16) |
+  |---|---:|---:|
+  | our iTec Eco 8 | 16 | **0** |
+  | iTec Eco 5 with genuine gateway | 6 | **0** |
+  | iTec XTR M (ryckema's published logs) | 8 | **10** (the rest are year/hour/day) |
+
+  So the XTR's "challenge" is largely a static, clock-derived block and its firmware evidently does not verify the
+  response against it, which is why one fixed replay keeps working there. Both Eco generations draw a fresh full
+  128-bit value every time, and our three negatives are the behavioural confirmation that the Eco firmware does
+  verify. **Practical consequence for Eco owners: replaying a captured response will not get you a session; that
+  route needs the response algorithm or a real gateway.** The paragraph below describes the XTR result and should be
+  read as XTR-specific.
+- **On the XTR M a recorded response is accepted at the entry point — whether the rest of the session depends on it is open.**
   Note this is a Modbus-layer handshake, not an account login: no token or credential is exchanged on the bus, the
   cloud account lives above the gateway, and the gateway computes each response locally in 30–60 ms rather than
   fetching it. The challenges also stop after the first accepted response, so it is a one-time gate, not continuous
@@ -198,6 +223,16 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   guess has already been ruled out: an HMAC-SHA256 of the challenge with the gateway serial number as the key,
   tested against all six known pairs in many variants, reproduces none of them, so a serial-derived HMAC is not
   it; the key, if any, is not something printed on the unit.
+- **Hot water top-up: the "on" bit is not where you would look, and the panel control is one-shot.** On the Eco panel
+  TOP-UP behaves as a command rather than a switch: you set it to ON, the controller takes the job, and the field
+  reads OFF when you go back in. Throughout a full top-up the hot water page (`0x0F` FC16 start 1070 count 15, the
+  `042E/15` of other maps) kept word `0430`/1072 at **0**, so that word is not the running state. The running state
+  shows up in the room-sensor slot instead: `0x0A` `B3C6` (46022) went 0 → 2 thirteen seconds after enabling top-up
+  and back to 0 in the same second it was interrupted (2 occurrences, 2026-09-25 and 2026-10-03, both with start and
+  end times). That is readable passively, with no session and no gateway.
+- **The panel never publishes the operation mode on the bus.** Switching mode on the display (hot water → off → hot
+  water) produced no mode page at all: across twelve minutes of recording the panel pushed only the hot water page
+  and `@2143`. So on the Eco the mode is not observable or settable from the bus without the native gateway path.
 - **Settings changes travel display → `0x0F` as events, but only some of them.** Changing the heating curve on the
   display (30 → 31 → 30, two confirmed changes) produced an immediate FC16 to `0x0F` start 1000, count 14, with only
   the first word changed (ryckema saw the same on the XTR M). Three confirmed edits of two service-menu parameters
