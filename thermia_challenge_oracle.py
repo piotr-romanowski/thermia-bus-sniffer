@@ -177,12 +177,17 @@ def main() -> None:
             log.write("%8.3f TX ch#%s %s" % (t0, nr, frame.hex()) + chr(10))
 
             buf = bytearray()
+            first_byte_at = None
             while time.time() - t0 < args.listen:
                 chunk = ser.read(64)
                 if chunk:
+                    if first_byte_at is None:
+                        first_byte_at = time.time()
                     buf += chunk
             if buf:
-                dt = (time.time() - t0) * 1000.0
+                # latency to the first received byte, not to the end of the
+                # listen window, so a real 30 ms reply reads as ~30 ms
+                dt = (first_byte_at - t0) * 1000.0
                 log.write("%8.3f RX %s" % (time.time(), buf.hex()) + chr(10))
                 payload = find_response(buf)
                 if payload is not None:
