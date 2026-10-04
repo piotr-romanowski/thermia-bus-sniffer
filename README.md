@@ -270,6 +270,7 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   shows up in the room-sensor slot instead: `0x0A` `B3C6` (46022) went 0 → 2 thirteen seconds after enabling top-up
   and back to 0 in the same second it was interrupted (2 occurrences, 2026-09-25 and 2026-10-03, both with start and
   end times). That is readable passively, with no session and no gateway.
+  **The request side is `0x0A` @46002 (`B3B2`), and we mapped it by emulating the room sensor.** Writing **1** into that third reply word starts a top-up: `B3C6`/@46022 goes to 2 within ~12 s and the controller drives the tank straight to the immersion heater, bypassing the compressor, even with the tank already hot (two clean A/B cycles, confirmed in both hot-water and auto mode). It is a one-shot command code, not a flag or an enum: only **1** does anything — **2** and **3** do nothing, whether sent from idle or during an active top-up. No value of @46002 cancels a running top-up (0/2/3 all leave it running); only an operating-mode interrupt at the panel stops it, which matches the physical sensor, whose only hot-water action is "start top-up". The manufacturer's room-sensor manual (086U9563) independently describes exactly this: hold − and + for ~20 s to trigger hot-water top-up. So @46002 is the trigger and @46022 is the active indicator — the two halves of the same room-sensor top-up exchange.
 - **The panel never publishes the operation mode on the bus.** Switching mode on the display (hot water → off → hot
   water) produced no mode page at all: across twelve minutes of recording the panel pushed only the hot water page
   and `@2143`. So on the Eco the mode is not observable or settable from the bus without the native gateway path.
@@ -304,11 +305,11 @@ is function code `0x17` = **FC23** (Read/Write Multiple Registers), not Report S
 What this repo adds (iTec Eco 8 / DHP-AQ board). **Confirmed** = matched against the service display or against
 our own logged bus traffic; **candidate** = observed, not yet cross-checked — corrections welcome.
 
-Provenance, so credit lands where it belongs: the register *semantics* for `0x0A` @46000–46002 and the `0x1E` @20
+Provenance, so credit lands where it belongs: the register *semantics* for `0x0A` @46000–46001 and the `0x1E` @20
 state names (including "20 is an autonomous sequence, not defrost") come from **ryckema's v26 analysis**; the
 withdrawal of the earlier "SG Ready room offset" reading of @46022 is likewise his. What is ours is the
 independent verification on a different model (iTec Eco 8 vs XTR M) from logged traffic, the output map from the
-display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findings.
+display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findings including `0x0A` @46002 = hot-water top-up request.
 
 | Slave | Registers | Meaning | Status |
 |---|---|---|---|
@@ -323,8 +324,8 @@ display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findin
 | `0x1E` FC04 | @21 | status bitfield: **0x0020** heating context, **0x0040** hot-water context, **0x0200** outdoor unit active. Observed 577 → 65 → 33 → 545 across one DHW → heating handover (we had @20/@21 mislabelled as superheat / subcooling) | bits from ryckema; confirmed here in both modes |
 | `0x1E` FC16 | @4 | mode request: **1** = heating, **2** = hot water (3 = cooling per ryckema, not seen here yet) | enum from ryckema; the 2 → 1 switch confirmed here |
 | `0x02` FC23 write | @43023 | **circulation (condenser) pump speed, %**: follows the MANUAL TEST "CONDENSER PUMP" setting step for step (30 → 40 → 50…); 5 = pump stopped, 10 = idle, 80 while a heater runs; the 80 → 100 ramp at the start of a heating cycle is the pump spinning up | confirmed (manual test) |
-| `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, unused | confirmed / ryckema |
-| `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, third word (0 / 2, meaning unknown) | confirmed / ryckema |
+| `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, **hot-water top-up request** | confirmed (@46000/01 ryckema; @46002 ours, transmit test) |
+| `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, **third word = hot-water top-up active (0 / 2)** | confirmed |
 
 A warning about the `0x1E` FC04 block at **@30–51**: it looks like a copy of @0–21 (@40 lines up with @10,
 @50/@51 with @20/@21), but **it is not a live mirror — do not decode it as current state.** It does change,
