@@ -1,0 +1,7 @@
+#!/bin/sh
+# Zasada projektu (CLAUDE.md, tabela GIT): commity BEZ stopek atrybucji asystenta AI.
+# Odrzuca wiadomosc ze stopka Co-Authored-By / "Generated with". Wlaczenie: git config core.hooksPath .githooks
+if grep -qiE '^(co-authored-by:|.*generated with \[?claude)' "$1"; then
+    echo "commit-msg: wiadomosc zawiera stopke atrybucji (Co-Authored-By / Generated with) - zabronione w tym repo (CLAUDE.md)." >&2
+    exit 1
+fi
