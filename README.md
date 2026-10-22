@@ -366,8 +366,6 @@ A `commit-msg` hook in `.githooks/` rejects them. Git does not enable repo hooks
 git config core.hooksPath .githooks
 ```
 
-On Linux/macOS also make sure the hook is executable: `chmod +x .githooks/commit-msg`.
-
 ## License
 
 MIT. Not affiliated with Thermia, Danfoss or Samsung. Passive listening only — you are responsible for what you
