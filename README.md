@@ -174,7 +174,9 @@ display -> 0x0A:  0A 17 B3 B0 00 03 B3 C4 00 03 06 00 XX 00 10 00 00 CRC        
   capture is needed before saying anything about the Eco 8. On the XTR M the 16 bytes are a clock/service record,
   129 of 129 frames; on this Eco 5 with a real gateway they are not — two regimes, trigger unknown.) Raw log (shared by its owner, name withheld by request):
   [`captures/itec_eco5_gateway_20260926.log`](captures/itec_eco5_gateway_20260926.log). Discuss on the HA
-  Community thread or GitHub discussion 143 above.
+  Community thread or GitHub discussion 143 above. In both Eco 5 logs the heat pump serial number configured by
+  the gateway (registers 1778/1779, the `06F1/3` block) is masked: those two words are replaced with `0000 0000`
+  and the CRC recomputed (29 frames). The real value is non-zero and differs from the `FFFF` seen on the ATEC and XTR.
 - **Cold-start answer on an iTec Eco 8 (our own pump, firmware 2.3.0, no gateway).** A passive capture across a
   power cycle settles the earlier open question: the bare controller does emit the `071C/0730` challenge on its
   own, in the same format (read `@1840` count 8, write `@1820` count 8, 16 bytes), starting ~1.4 s after the bus
