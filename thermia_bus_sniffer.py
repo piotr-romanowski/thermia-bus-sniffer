@@ -43,8 +43,11 @@ def crc_ok(fr: bytes) -> bool:
 def u16(b, i): return (b[i] << 8) | b[i + 1]
 def s16(v): return v - 65536 if v >= 32768 else v
 
-def candidate_lengths(buf, i):
-    """Possible frame lengths starting at buf[i], derived from the function code (request AND response shapes)."""
+MAX_FRAME = 260                                      # Modbus RTU max 256 B (+ margin)
+
+def candidate_lengths(buf, i, incomplete=False):
+    """Possible frame lengths starting at buf[i], derived from the function code (request AND response shapes).
+    incomplete=True: the plausible lengths that have NOT fully arrived yet."""
     rem = len(buf) - i
     if rem < 4:
         return []
@@ -65,6 +68,8 @@ def candidate_lengths(buf, i):
         out.add(3 + buf[i + 2] + 2)                  # response (read byte count at [2])
     if fc & 0x80:
         out.add(5)                                   # exception
+    if incomplete:
+        return sorted(c for c in out if rem < c <= MAX_FRAME)
     return sorted(c for c in out if 4 <= c <= rem)
 
 def extract_frames(buf: bytearray):
@@ -81,7 +86,10 @@ def extract_frames(buf: bytearray):
             frames.append(hit)
             i += len(hit)
         else:
-            if len(buf) - i > 64:      # garbage: skip a byte (only when we have plenty of data)
+            # garbage: skip a byte (only when we have plenty of data) - UNLESS the header announces a longer
+            # frame that has not fully arrived yet. TCP converters (Elfin: BufSize 64) split long frames, e.g.
+            # the 129-byte 0x0F FC16 0884/60 page; skipping here silently dropped every such frame.
+            if len(buf) - i > 64 and not candidate_lengths(buf, i, incomplete=True):
                 i += 1
             else:
                 break                  # maybe an incomplete frame - wait for more bytes

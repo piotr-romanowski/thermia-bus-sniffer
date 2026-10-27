@@ -24,6 +24,17 @@ If you own one of those, a capture with this tool would help the whole family of
    For a **cold start**: start the sniffer first, power the adapter independently of the heat pump (otherwise the first seconds are lost), then switch the pump off and on.
 
 If you use an RS485↔TCP bridge (e.g. Elfin EE11A) instead: `--tcp <ip>:8899`.
+
+> **Elfin EE11/EW11 users: set the serial CLI to `Disable`.** With the factory setting `CliGetIn = Always`
+> (web UI → serial port settings, or `POST /cmd`, section `UART`) a long frame on the bus can drop the
+> Elfin into its command console: it then **transmits `\r\nEPORT>` onto the RS485 bus** (corrupting other
+> devices' frames) and stops forwarding data to TCP until it is power-cycled. We hit this on an iTec Eco 8
+> with the 129-byte `0x0F` page `0884` (2026-10-26); `CliGetIn = Disable` removed it completely.
+>
+> **Fixed 2026-10-27:** frames longer than 64 bytes that arrive in several TCP chunks (Elfin `BufSize` 64)
+> were silently dropped by the frame splitter. If you captured through a TCP bridge before this date, long
+> pages (e.g. `0x0F` FC16 `0884/60`) are missing from the decoded output; `--replay` of a raw log is unaffected
+> only if the log was written already frame-aligned.
 To see only the online-module slot decoded: `--focus 0x06`. To re-decode a saved log: `--replay file.log`.
 
 ## Second tool: challenge-response oracle test (`thermia_challenge_oracle.py`)
