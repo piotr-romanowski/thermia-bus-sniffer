@@ -327,8 +327,18 @@ display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findin
 | Slave | Registers | Meaning | Status |
 |---|---|---|---|
 | `0x0F` FC16 | @1011 | High power (1 = on) | confirmed (A/B on the display) |
-| `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence % | confirmed (display menu) |
+| `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence %; @1057 top-up stop temperature confirmed by changing it (65 → 64 → 65) | confirmed (display menu) |
 | `0x0F` FC16 | @1090–1102 | Cooling menu: cooling on, desired temp, mode-active limit, time, room sensor, hysteresis low/high (÷10 K) | candidate |
+| `0x0F` FC16 | @1070 | hot water enabled (0 / 1); the tank icon on the display follows it | confirmed (display) — *session* |
+| `0x0F` FC16 | @1073, @1074 | heating STOP / START (HEATING service menu), stored ÷5: raw 10 / −10 shows as 50 / −50 | confirmed (display) — *session* |
+| `0x0F` FC16 | @1075, @1076 | heating start-up time / heating time, minutes (display 5 / 30) | confirmed (display) — *session* |
+| `0x0F` FC16 | @1110 | immersion heater max step (display MAX STEP) | confirmed (display, changed 2 → 1 → 2) — *session* |
+| `0x0F` FC16 | @1112 | immersion heater current limit, A (20 here) | candidate — *session* |
+| `0x0F` FC16 | @1113 | aux heater start delay (display START DELAY 30) | confirmed (display) — *session* |
+| `0x0F` FC16 | @2129 | **weighted hot-water temperature**, °C: the first number in HOT WATER START "42 (39)"; the number in brackets is the start threshold @1053. Close to round((2 × top + middle) / 3) from `0x02` @43003 / @43004, ±1 °C | confirmed (display) — *session* |
+| `0x0F` FC16 | @2160, 2162, 2166, 2167, 2168 | operating hours: compressor, heating, hot water, immersion heater 1, immersion heater 2 | confirmed (INFORMATION menu, hours) — *session* |
+| `0x0F` FC16 | @2163 | cooling operating hours (118 here; @2165 holds the same value) | candidate — *session* |
+| `0x0F` FC16 | @2171 | defrost counter | candidate — *session* |
 | `0x02` FC23 write | @43020 | controller **output** bitfield, mapped with the display's MANUAL TEST (one output at a time, power meter logged): **bit 0** reversing valve on hot water, **bit 1** cooling by-pass, **bit 2** potential-free aux output, **bit 3** external aux heater, **bit 6** controller active (0 when the operating mode is Off — not "compressor running"), **bit 7** immersion heater stage 1 (+2.7 kW measured). Bit 5 unassigned (seen with the external aux heater). Read compressor state from `0x1E` FC04 @11/13 | confirmed (manual test) |
 | `0x02` FC23 write | @43021 | **bit 4** = immersion heater stage 2 (+5.2 kW measured) | confirmed (manual test) |
 | `0x1E` FC16 | @1 | target supply temperature ÷10, written by the display to the outdoor unit | confirmed |
@@ -339,6 +349,12 @@ display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findin
 | `0x02` FC23 write | @43023 | **circulation (condenser) pump speed, %**: follows the MANUAL TEST "CONDENSER PUMP" setting step for step (30 → 40 → 50…); 5 = pump stopped, 10 = idle, 80 while a heater runs; the 80 → 100 ramp at the start of a heating cycle is the pump spinning up | confirmed (manual test) |
 | `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, **hot-water top-up request** | confirmed (@46000/01 ryckema; @46002 ours, transmit test) |
 | `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, **third word = hot-water top-up active (0 / 2)** | confirmed |
+
+**Where the `0x0F` rows come from.** Registers @1000–2199 are the controller's settings and operating data as it
+publishes them (FC16) to the online-module slot `0x0F`. Without an online module on the bus you only see the
+settings of the screen currently open on the display; the rows marked *session* above (@1070–1076, @1110–1121,
+@2129, @2160–2171) are published only while an online-module session runs. Values were matched against the
+display's service menus on an iTec Eco 8 (display fw 2.3.0).
 
 A warning about the `0x1E` FC04 block at **@30–51**: it looks like a copy of @0–21 (@40 lines up with @10,
 @50/@51 with @20/@21), but **it is not a live mirror — do not decode it as current state.** It does change,
