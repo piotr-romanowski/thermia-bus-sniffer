@@ -326,35 +326,53 @@ display's manual test, the `0x1E` @20 bit meanings, and the transmit-side findin
 
 | Slave | Registers | Meaning | Status |
 |---|---|---|---|
+| `0x0F` FC16 | @1000–1008, @1012 | HEATING menu: curve, min, max, **curve offsets +5 / 0 / −5 °C (@1003–1005, signed word: −3 = 65533)**, heat stop, setback temperature, room factor; @1012 room setpoint | confirmed (display; @1003–1005 stepped and restored 05.11) |
 | `0x0F` FC16 | @1011 | High power (1 = on) | confirmed (A/B on the display) |
-| `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence %; @1057 top-up stop temperature confirmed by changing it (65 → 64 → 65) | confirmed (display menu) |
-| `0x0F` FC16 | @1090–1102 | Cooling menu: cooling on, desired temp, mode-active limit, time, room sensor, hysteresis low/high (÷10 K) | candidate |
+| `0x0F` FC16 | @1053–1059 | Hot-water menu: start temp, run time, top-up interval / stop temp / time, sensor influence %, eco influence % (display = 5 × raw: 13 → 65 %); @1057 top-up stop temperature confirmed by changing it (65 → 64 → 65), @1058 / @1059 stepped 05.11 (15 → 75 %, 4 → 20 %) | confirmed (display menu) |
+| `0x0F` FC16 | @1060 | SERVICE / HOT WATER / STOP — the stop temperature of **Comfort** mode only. In Eco and Super Eco the display shows a fixed 49, not editable, and ignores @1060 (set to 54: Comfort showed 54, Eco still 49) | confirmed (display) |
+| `0x0F` FC16 | @1071 | hot-water mode: 0 Comfort, 1 Eco, **2 Super Eco** on the Eco 8 display (ryckema's XTR names 2 "Away") | confirmed (display) — *session* |
+| `0x0F` FC16 | @1090–1102 | Cooling menu: @1090 cooling on, @1091 desired temp, @1093 mode-active limit, @1095 / @1096 service START / STOP (display = −5 × raw: −12 → 60, 8 → −40), @1097 time (min), @1100 room sensor, @1101 / @1102 room-sensor hysteresis low / high (÷10 K: 12 → 1.2). @1094 is **not** the cooling mode. Display visibility: @1090 = 0 hides the user COOLING menu except the switch; @1100 = 0 hides the hystereses | confirmed (each stepped and restored, 05.11) |
+| `0x0F` FC16 | @1352 | SERVICE / COOLING mode (Eco 8 offers OFF / ACTIVE COOLING): **2** = active, **0** = off (hides the user COOLING menu) | confirmed (display) |
 | `0x0F` FC16 | @1070 | hot water enabled (0 / 1); the tank icon on the display follows it | confirmed (display) — *session* |
-| `0x0F` FC16 | @1073, @1074 | heating STOP / START (HEATING service menu), stored ÷5: raw 10 / −10 shows as 50 / −50 | confirmed (display) — *session* |
+| `0x0F` FC16 | @1073, @1074 | heating **START / STOP** (HEATING service menu), display = **−5 × raw**: @1073 raw 10 shows START −50, @1074 raw −10 shows STOP 50 | confirmed (display, each stepped 03.11) — *session* |
 | `0x0F` FC16 | @1075, @1076 | heating start-up time / heating time, minutes (display 5 / 30) | confirmed (display) — *session* |
 | `0x0F` FC16 | @1110 | immersion heater max step (display MAX STEP) | confirmed (display, changed 2 → 1 → 2) — *session* |
-| `0x0F` FC16 | @1112 | immersion heater current limit, A (20 here) | candidate — *session* |
+| `0x0F` FC16 | @1111 | aux heater START, display = **−15 × raw** (5 → −75, 4 → −60, 6 → −90) | confirmed (display) — *session* |
+| `0x0F` FC16 | @1112 | immersion heater current limit, A (20 here) — no such item in the Eco 8 display menu | candidate — *session* |
 | `0x0F` FC16 | @1113 | aux heater start delay (display START DELAY 30) | confirmed (display) — *session* |
+| `0x0F` FC16 | @1121 | aux heater FREEZE PROTECT (1 = on) | confirmed (display) — *session* |
+| `0x0F` FC16 | @1150, @1151 | SERVICE / DEFROST: COMPR. STOP (0 / 1), ENERGY PR.H.W (1 = defrost energy taken from the hot-water tank first; see *Defrost* below) | confirmed (display) |
+| `0x0F` FC16 | @1170–1179 | SERVICE / OPTIMUM (variable-speed circulation pump; display shows volts = raw ÷10): START FLOW CIRC., IDLE FLOW, MAX FLOW HEAT, FLOW FACTOR HEAT (÷10), MIN FLOW HEAT / H.W. / COOL, @1177 hidden (MIN FLOW POOL by the menu order; no pool here), MAX / MIN H.W CHARGE (°C). @1176 is shown only with cooling on | confirmed (each stepped and restored, 05.11; @1177 write accepted, not visible) |
+| `0x0F` FC16 | @1335, @1350 | SERVICE / INSTALLATION: SYSTEM / OPTIMUM (1 = on), LOG TIME (minutes) | confirmed (display) |
 | `0x0F` FC16 | @2129 | **weighted hot-water temperature**, °C: the first number in HOT WATER START "42 (39)"; the number in brackets is the start threshold @1053. Close to round((2 × top + middle) / 3) from `0x02` @43003 / @43004, ±1 °C | confirmed (display) — *session* |
 | `0x0F` FC16 | @2160, 2162, 2166, 2167, 2168 | operating hours: compressor, heating, hot water, immersion heater 1, immersion heater 2 | confirmed (INFORMATION menu, hours) — *session* |
 | `0x0F` FC16 | @2163 | cooling operating hours (118 here; @2165 holds the same value) | candidate — *session* |
-| `0x0F` FC16 | @2171 | defrost counter | candidate — *session* |
+| `0x0F` FC16 | @2120, @2121 | operating data: HEAT DEMAND = **−@2120** (degree-minutes); @2121 = wanted supply temperature (the value in brackets next to SUPPLY LINE; in hot-water mode the display shows "--") | confirmed (display) — *session* |
+| `0x0F` FC16 | @2171, @2172, @2173 | DEFROST info: counter; minutes between the last two defrosts; **minutes since the last one** (6174 = 4 d 6 h on the display, rises once per controller minute; 64800 = 45 days looks like a cap) | confirmed (display) — *session* |
 | `0x02` FC23 write | @43020 | controller **output** bitfield, mapped with the display's MANUAL TEST (one output at a time, power meter logged): **bit 0** reversing valve on hot water, **bit 1** cooling by-pass, **bit 2** potential-free aux output, **bit 3** external aux heater, **bit 6** controller active (0 when the operating mode is Off — not "compressor running"), **bit 7** immersion heater stage 1 (+2.7 kW measured). Bit 5 unassigned (seen with the external aux heater). Read compressor state from `0x1E` FC04 @11/13 | confirmed (manual test) |
 | `0x02` FC23 write | @43021 | **bit 4** = immersion heater stage 2 (+5.2 kW measured) | confirmed (manual test) |
 | `0x1E` FC16 | @1 | target supply temperature ÷10, written by the display to the outdoor unit | confirmed |
 | `0x1E` FC04 | @11, 12, 13, 14, 16 | compressor Hz, max-frequency ratio %, current ÷10 A, fan rpm, EEV steps | confirmed |
-| `0x1E` FC04 | @20 | outdoor-unit state **bitfield**: **0x01** compressor running, **0x04** outdoor fan turning, **0x08** water flow / circulation pump, **0x10** always set — each bit matched its signal in 100.0 % of ~20 000 samples over seven days. So 16 idle, 24 pump, 28 pump + fan, 29 + compressor; 20 = fan alone (ryckema's "autonomous sequence", *not* defrost). A reverse-cycle defrost should show as 25 (0x19), not yet seen | confirmed here; values and the "20 is not defrost" note from ryckema |
-| `0x1E` FC04 | @21 | status bitfield: **0x0020** heating context, **0x0040** hot-water context, **0x0200** outdoor unit active. Observed 577 → 65 → 33 → 545 across one DHW → heating handover (we had @20/@21 mislabelled as superheat / subcooling) | bits from ryckema; confirmed here in both modes |
+| `0x1E` FC04 | @20 | outdoor-unit state **bitfield**: **0x01** compressor running, **0x02 reverse cycle**, **0x04** outdoor fan turning, **0x08** water flow / circulation pump, **0x10** always set — 0x01 / 0x04 / 0x08 each matched its signal in 100.0 % of ~20 000 samples over seven days. On this heating-only unit 0x02 was set in 20/20 defrosts and never outside them (typical sequence 31 → 26 → 27 → 26 → 24 → 28 → 29); ryckema's cooling states 26 / 27 / 30 / 31 carry the same bit, consistent with the reversing valve. So 16 idle, 24 pump, 28 pump + fan, 29 + compressor; 20 = fan alone (ryckema's "autonomous sequence", *not* defrost) | confirmed here; values and the "20 is not defrost" note from ryckema |
+| `0x1E` FC04 | @21 | status bitfield: **0x0004 defrost**, **0x0020** heating context, **0x0040** hot-water context, **0x0200** outdoor unit active. Observed 577 → 65 → 33 → 545 across one DHW → heating handover; 545 → 549 → 545 around a defrost (we had @20/@21 mislabelled as superheat / subcooling) | 0x20 / 0x40 / 0x200 from ryckema, confirmed here; 0x04 ours (12 events = 12 defrost-counter steps; matched the display to the second) |
 | `0x1E` FC16 | @4 | mode request: **1** = heating, **2** = hot water (3 = cooling per ryckema, not seen here yet) | enum from ryckema; the 2 → 1 switch confirmed here |
 | `0x02` FC23 write | @43023 | **circulation (condenser) pump speed, %**: follows the MANUAL TEST "CONDENSER PUMP" setting step for step (30 → 40 → 50…); 5 = pump stopped, 10 = idle, 80 while a heater runs; the 80 → 100 ramp at the start of a heating cycle is the pump spinning up | confirmed (manual test) |
 | `0x0A` FC23 read | @46000–46002 | the room sensor's reply: room °C ×10, pending setpoint request, **hot-water top-up request** | confirmed (@46000/01 ryckema; @46002 ours, transmit test) |
-| `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, **third word = hot-water top-up active (0 / 2)** | confirmed |
+| `0x0A` FC23 write | @46020–46022 | pushed by the display: outdoor °C, room setpoint °C, **third word = hot-water top-up active (0 / 2)**. **The outdoor temperature is a signed low byte**: −1 °C arrives as `0x00FF` (we decoded it as 255 for one night: 0 → 255 → 0). The `0x06` push carries the same value at word 4 | confirmed |
 
 **Where the `0x0F` rows come from.** Registers @1000–2199 are the controller's settings and operating data as it
 publishes them (FC16) to the online-module slot `0x0F`. Without an online module on the bus you only see the
 settings of the screen currently open on the display; the rows marked *session* above (@1070–1076, @1110–1121,
-@2129, @2160–2171) are published only while an online-module session runs. Values were matched against the
-display's service menus on an iTec Eco 8 (display fw 2.3.0).
+@2129, @2160–2173) are published only while an online-module session runs. Values were matched against the
+display's service menus on an iTec Eco 8 (display fw 2.3.0); rows marked "stepped" were changed one at a time,
+read on the display and set back.
+
+**Defrost on the iTec Eco 8** (20 defrosts at −1…+8 °C, ENERGY PR.H.W on, from logged traffic): the hot-water valve
+(`0x02` @43020 bit 0) is on for the **whole** defrost — all 13 defrosts of one night; when a defrost started from heating,
+the valve switched on 1 s after the start and off 17 s after the end — so the heat comes from the tank, not from the floor
+circuit. The "supply line" reading meanwhile drops to 23–27 °C, presumably because it then sees the tank loop. A typical defrost lasted 4.3–5.2 min, every 45–90 min at night around 0 °C, without the immersion
+heater (13/20). The heater ran *during* a defrost twice: with a cold tank (25 °C bottom, after a large draw) and in one
+13-minute defrost.
 
 A warning about the `0x1E` FC04 block at **@30–51**: it looks like a copy of @0–21 (@40 lines up with @10,
 @50/@51 with @20/@21), but **it is not a live mirror — do not decode it as current state.** It does change,
@@ -366,6 +384,13 @@ unknown and I have not measured the lag — treat the pairing as unconfirmed.
 *(Correction: an earlier version of this README called that block "frozen, a snapshot taken at init". That
 was wrong — it came from querying a full day's history in the morning, before the day was over, and reading
 a single unchanged value as "never moved". Corrected the same day.)*
+
+*(Correction: an earlier version had @1073 / @1074 the other way round — "STOP / START, raw 10 / −10 shows as
+50 / −50". With symmetric values the two cannot be told apart from a read; stepping each one on the display showed
+@1073 = START, @1074 = STOP, display = −5 × raw.)*
+
+*(Correction: an earlier version predicted that a defrost would show in `0x1E` @20 as 25 (compressor, no fan).
+It shows as the separate bit 0x02 instead, with the compressor and fan bits changing during the sequence.)*
 
 *(Correction: an earlier version described `0x02` @43023 as "a counter that saturates at 100", because it
 ramped 80 → 100 while the compressor frequency stayed flat. It is the circulation pump speed — the display's
