@@ -15,7 +15,7 @@ Usage:
     python thermia_bus_sniffer.py --com COM6                      # Windows serial
     python thermia_bus_sniffer.py --com /dev/ttyUSB0 --seconds 120
     python thermia_bus_sniffer.py --tcp 192.0.2.182:8899          # RS485<->TCP bridge
-    python thermia_bus_sniffer.py --com COM6 --focus 0x06         # decode only the online-module slot
+    python thermia_bus_sniffer.py --com COM6 --focus 0x0F         # decode only the online-gateway slot (iTec)
     python thermia_bus_sniffer.py --replay capture.log            # re-decode a saved log offline
 
 Output:
@@ -128,8 +128,9 @@ def regs_of_response(fr):
     body = fr[3:3 + bc]
     return [u16(body, k) for k in range(0, len(body) - 1, 2)]
 
-KNOWN = {0x02: "indoor board (data)", 0x0F: "indoor board (setpoints, write-only)", 0x1E: "outdoor unit",
-         0x06: "ONLINE MODULE slot", 0x0A: "ROOM SENSOR slot"}
+KNOWN = {0x02: "indoor board (data)", 0x0F: "ONLINE GATEWAY slot (iTec)", 0x1E: "outdoor unit",
+         0x06: "legacy online-module slot", 0x0A: "ROOM SENSOR slot"}
+SLOTS = (0x06, 0x0A, 0x0F)   # accessory slots: a response from one of them = an accessory is connected
 
 # ----------------------------------------------------------------------------- sources
 class SerialSource:
@@ -207,7 +208,7 @@ def run(src, out_path, seconds, every, focus, quiet):
                         e["req"] += 1; pending[addr] = (fc, fr, now); kind = "REQ "
                     if focus is not None and addr == focus:
                         describe(kind, fr, t_rel)
-                    elif not quiet and fc == 0x17 and addr in (0x06, 0x0A) and focus is None:
+                    elif not quiet and fc == 0x17 and addr in SLOTS and focus is None:
                         describe(kind, fr, t_rel)
                 # expire stale pendings (>0.5 s without response = the slot is silent)
                 for a in [a for a, (_, _, t) in pending.items() if now - t > 0.5]:
@@ -249,7 +250,7 @@ def print_inventory(inv, elapsed, n):
     for a in sorted(inv):
         e = inv[a]
         note = KNOWN.get(a, "unknown device")
-        if a in (0x06, 0x0A):
+        if a in SLOTS:
             note += "  (ANSWERING!)" if e["resp"] else "  (silent = slot empty)"
         print(f"  0x{a:02X} {e['req']:5d} {e['resp']:5d} {e['exc']:4d}  {note:32} {e['last'][:40]}")
     print("---")

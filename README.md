@@ -35,7 +35,7 @@ If you use an RS485↔TCP bridge (e.g. Elfin EE11A) instead: `--tcp <ip>:8899`.
 > were silently dropped by the frame splitter. If you captured through a TCP bridge before this date, long
 > pages (e.g. `0x0F` FC16 `0884/60`) are missing from the decoded output; `--replay` of a raw log is unaffected
 > only if the log was written already frame-aligned.
-To see only the online-module slot decoded: `--focus 0x06`. To re-decode a saved log: `--replay file.log`.
+To see only the online-gateway slot decoded: `--focus 0x0F` (legacy pumps: `0x06`). To re-decode a saved log: `--replay file.log`.
 
 ## Second tool: challenge-response oracle test (`thermia_challenge_oracle.py`)
 
@@ -91,9 +91,11 @@ cross-checked.
 
 ## What a useful capture contains
 
-Run the sniffer for 60–120 s with the online module connected and working. The interesting lines are the
-requests to `0x06` and — above all — the **responses from `0x06`** (the tool marks them `<<< SLOT ANSWERED`).
-Boot captures (power-cycle the pump with the sniffer already running) are even better.
+Run the sniffer for 60–120 s with the online module / gateway connected and working. On the iTec family the
+gateway lives on slot **`0x0F`** (challenge `FC23`, page writes `FC16`, mailbox reads `FC03 @0708`); older Danfoss
+Link / DCM03 setups used `0x06`. The interesting lines are the **responses from the slot** (the tool marks them
+`<<< SLOT ANSWERED`). Boot captures (power-cycle the pump with the sniffer already running) are even better —
+the challenge appears only when the controller opens a session.
 
 ## Contributing
 
