@@ -16,7 +16,10 @@ If you own one of those, a capture with this tool would help the whole family of
 
 1. Any USB-RS485 adapter (≈ 5 €). Connect A and B to the RJ45 "Modbus" port of the indoor unit
    (ports 122/123; a spare port is usually free — the display uses one, the online module the other).
-   RJ45 pinout seen on iTec: **1+2 = A, 3+4 = B, 5+6 = GND, 7+8 = +12 V** (do not touch 7/8).
+   RJ45 pinout on iTec, **by wire colour** of a standard T568B patch cord: **white/brown + brown = A**,
+   **white/blue + green = B**, white/green + blue = GND, orange + white/orange = +12 V (leave unconnected).
+   Older write-ups give pin numbers counted from the other end of the plug (1+2 = A … 7+8 = +12 V): go by colours
+   and measure before connecting. Details: thermia-itec-docs, PROTOCOL §1.
 2. `pip install pyserial`
 3. `python thermia_bus_sniffer.py --com COM6 --seconds 90` (Linux: `--com /dev/ttyUSB0`)
 4. Post / send the file `thermia_capture_<timestamp>.log`. It contains only bus frames (hex), nothing personal.
